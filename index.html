@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GUERRA DIGITAL · Radar político de España en tiempo real</title>
+<meta name="description" content="Mapa de guerra interactivo: visualiza en tiempo real la reacción en redes sobre los partidos políticos en toda España.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23060b14'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%2343e8ff' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='2.6' fill='%2343e8ff'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#04060c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ══════════════ CABECERA ══════════════ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"><span></span></div>
+      <div class="brand-txt">
+        <h1>GUERRA DIGITAL</h1>
+        <p>Radar de reacción política · España</p>
+      </div>
+    </div>
+
+    <div class="top-stats">
+      <div class="stat"><i>TWEETS</i><b id="statTotal">0</b></div>
+      <div class="stat"><i>POR MIN</i><b id="statRate">0</b></div>
+      <div class="stat"><i>VIRALES</i><b id="statViral">0</b></div>
+      <div class="stat hot"><i>ZONA CALIENTE</i><b id="statHot">—</b></div>
+    </div>
+
+    <div class="conn">
+      <span class="dot" id="connDot"></span>
+      <span class="conn-l" id="connLabel">SIMULACIÓN EN VIVO</span>
+      <span class="clock" id="clock">--:--:--</span>
+      <button class="icon-btn" id="btnHelp" title="Cómo conectar datos reales">?</button>
+    </div>
+  </header>
+
+  <!-- ══════════════ CUERPO ══════════════ -->
+  <main class="grid">
+
+    <!-- ── COLUMNA IZQUIERDA ── -->
+    <aside class="panel side left">
+
+      <section class="mod">
+        <h2 class="mod-t">Control de operaciones</h2>
+        <div class="btn-row">
+          <button class="btn" id="btnPause">❙❙ PAUSA</button>
+          <button class="btn accent" id="btnBurst">⚡ OLA VIRAL</button>
+          <button class="btn ghost" id="btnReset">↺ LIMPIAR</button>
+        </div>
+        <label class="srow" title="Menciones simuladas por segundo">
+          <span>INTENSIDAD</span>
+          <input type="range" id="rate" min="0.2" max="8" step="0.1" value="1.6">
+          <b id="rateVal">1,6/s</b>
+        </label>
+        <label class="srow" title="Cuánto engagement hace falta para que el radar dispare una alerta viral">
+          <span>SENSIBILIDAD</span>
+          <input type="range" id="sens" min="0.5" max="3" step="0.1" value="1">
+          <b id="sensVal">x1</b>
+        </label>
+      </section>
+
+      <section class="mod">
+        <h2 class="mod-t">Fuente de datos</h2>
+        <div class="seg" id="srcSeg">
+          <button class="seg-b active" data-src="sim">SIMULACIÓN</button>
+          <button class="seg-b" data-src="ws">WEBSOCKET</button>
+        </div>
+        <div id="wsBox" class="ws-box" hidden>
+          <div class="ws-row">
+            <input class="input" id="wsUrl" type="text" placeholder="ws://localhost:8787/tweets" spellcheck="false">
+            <button class="btn" id="wsConnect">CONECTAR</button>
+          </div>
+          <p class="hint">JSON esperado: <code>{ text, user:{name,handle}, party, region, hashtags, sentiment, engagement }</code>. Solo <code>text</code> es obligatorio: el resto se infiere.</p>
+        </div>
+      </section>
+
+      <section class="mod">
+        <h2 class="mod-t">Partidos en juego</h2>
+        <div id="legend" class="legend"></div>
+      </section>
+
+      <section class="mod">
+        <h2 class="mod-t">Filtros</h2>
+        <input class="input" id="search" type="search" placeholder="buscar hashtag, texto, región…" spellcheck="false">
+        <div class="chips" id="chips"></div>
+        <p class="hint">Toca un partido para ocultarlo del frente.</p>
+      </section>
+
+      <section class="mod">
+        <h2 class="mod-t">Frente por comunidad</h2>
+        <div id="regionRank" class="rank"></div>
+      </section>
+
+    </aside>
+
+    <!-- ── ESCENARIO / MAPA ── -->
+    <section class="stage">
+
+      <div class="map-wrap" id="mapWrap">
+        <svg id="map" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg>
+        <canvas id="fx"></canvas>
+        <div class="radar" aria-hidden="true"></div>
+        <div class="gridlines" aria-hidden="true"></div>
+        <div class="scanlines" aria-hidden="true"></div>
+        <div class="vignette" aria-hidden="true"></div>
+
+        <div class="hud tl">
+          <span class="hud-k">SECTOR</span><span class="hud-v">ESPAÑA PENINSULAR + INSULAR</span>
+          <span class="hud-k">MAPA</span><span class="hud-v" id="hudRegions">19 SECTORES ACTIVOS</span>
+        </div>
+
+        <div class="hud tr" id="trendBox" hidden>
+          <span class="hud-k">TENDENCIA</span>
+          <b id="trendTag">#—</b>
+          <span id="trendBar"><i></i></span>
+        </div>
+
+        <div class="hud bl">
+          <span class="heat-scale"><i style="--c:rgba(255,255,255,.10)"></i><i style="--c:rgba(255,255,255,.25)"></i><i style="--c:rgba(255,255,255,.45)"></i><i style="--c:rgba(255,255,255,.75)"></i></span>
+          <span class="hud-k">CALOR DE MENCIONES</span>
+        </div>
+
+        <div id="flash" class="flash" aria-hidden="true"></div>
+        <div class="corner c1"></div><div class="corner c2"></div><div class="corner c3"></div><div class="corner c4"></div>
+      </div>
+
+      <div class="chart-wrap">
+        <div class="chart-head">
+          <span>EVOLUCIÓN DEL FRENTE · 90 s</span>
+          <span class="chart-sub" id="chartSub">menciones por partido</span>
+        </div>
+        <canvas id="trend"></canvas>
+      </div>
+
+    </section>
+
+    <!-- ── COLUMNA DERECHA ── -->
+    <aside class="panel side right">
+
+      <section class="mod feed-mod">
+        <h2 class="mod-t">Flujo en vivo <span class="live-dot"></span></h2>
+        <div id="feed" class="feed"><p class="empty">A la espera de menciones…<br>Cada tuit aparecerá aquí en el instante en que se publique.</p></div>
+      </section>
+
+      <section class="mod detail" id="detail">
+        <h2 class="mod-t">Sector seleccionado</h2>
+        <div id="detailBody" class="detail-body">
+          <p class="empty">Toca cualquier comunidad del mapa para abrir su dossier.</p>
+        </div>
+      </section>
+
+    </aside>
+  </main>
+
+  <!-- ══════════════ CINTA DE ALERTAS ══════════════ -->
+  <footer class="ticker">
+    <div class="ticker-label">⚠ ALERTAS</div>
+    <div class="ticker-viewport"><div class="ticker-track" id="ticker"><span>Sin alertas · el frente está en calma</span></div></div>
+  </footer>
+
+</div>
+
+<!-- ══════════════ AYUDA ══════════════ -->
+<div class="modal" id="help" hidden>
+  <div class="modal-card">
+    <button class="modal-x" id="helpClose">✕</button>
+    <h3>Cómo llevar datos reales a este mapa</h3>
+    <p>Esta web funciona <b>sin servidor</b> con un motor de simulación. Para enchufar tweets reales necesitas tu propia tubería (la API de X exige claves de pago):</p>
+    <ol>
+      <li>Lanza el <i>filtered stream</i> de la API de X en tu backend con reglas como <code>("#PSOE" OR "#PP" OR "#VOX" OR "#Sumar" OR "#Podemos") lang:es -is:retweet</code>.</li>
+      <li>Reenvía cada tweet por WebSocket como JSON: <code>{"text":"...", "user":{"name":"Ana","handle":"@ana"}, "location":"Madrid", "engagement":{"likes":120,"retweets":30}}</code>.</li>
+      <li>En el panel izquierdo elige <b>WEBSOCKET</b>, pega la URL (<code>ws://localhost:8787/tweets</code>) y conecta. El mapa infiere partido (hashtags/keywords) y comunidad (ubicación) si no se los envías.</li>
+    </ol>
+    <p class="hint">Los pesos electorales y los textos de la simulación son <b>datos de demostración</b>, no mediciones reales de opinión pública.</p>
+  </div>
+</div>
+
+<script src="js/spain-geo.js"></script>
+<script src="js/context-geo.js"></script>
+<script src="js/config.js"></script>
+<script src="js/stream.js"></script>
+<script src="js/map.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
